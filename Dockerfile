@@ -8,7 +8,12 @@ RUN npm ci
 
 COPY . .
 
-# Build the Vite app (VITE_ env vars must be set in Render dashboard)
+# Build the Vite app
+ARG VITE_API_BASE_URL
+ARG VITE_EXEC_SERVICE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_EXEC_SERVICE_URL=$VITE_EXEC_SERVICE_URL
+
 RUN npm run build
 
 # ---------- Stage 2: Serve ----------
