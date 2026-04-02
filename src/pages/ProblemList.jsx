@@ -160,7 +160,7 @@ function ProblemList({ user }) {
         ) : filtered.map((problem, idx) => (
           <Link
             key={problem.id}
-            to={problem.isBackend ? `/problems/${problem.id}` : `/problems/mock-${problem.id}`}
+            to={`/problems/${problem.id}`}
             className="problem-card"
             style={{ animationDelay: `${idx * 0.03}s`, textDecoration: 'none' }}
           >

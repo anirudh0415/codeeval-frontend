@@ -173,27 +173,22 @@ function ProblemDetail({ user }) {
     const [seconds, setSeconds] = useState(0);
 
     useEffect(() => {
-        if (id.startsWith('mock-')) {
-            // Load from local mock data — no backend needed
-            const mockId = id.replace('mock-', '');
-            const mockProblem = MOCK_PROBLEMS[mockId];
-            if (mockProblem) {
-                setProblem(mockProblem);
-            } else {
-                setProblem({ title: 'Problem Not Found', description: 'This problem could not be loaded.', difficulty: 'EASY' });
-            }
-            setCode(DEFAULT_CODE.c);
-        } else {
-            // Try backend
-            api.get(`/problems/${id}`)
-                .then(res => {
-                    setProblem(res.data);
-                    setCode(DEFAULT_CODE.c);
-                })
-                .catch(() => {
-                    setProblem({ title: 'Backend Offline', description: 'Could not load problem from server. Start the Spring Boot backend to load this problem.', difficulty: 'EASY' });
-                });
-        }
+        // Always try backend first, fall back to local mock data
+        api.get(`/problems/${id}`)
+            .then(res => {
+                setProblem(res.data);
+                setCode(DEFAULT_CODE.c);
+            })
+            .catch(() => {
+                // Backend offline or problem not in DB — load from local mock data
+                const mockProblem = MOCK_PROBLEMS[id];
+                if (mockProblem) {
+                    setProblem(mockProblem);
+                } else {
+                    setProblem({ title: 'Problem Not Found', description: 'This problem could not be loaded.', difficulty: 'EASY' });
+                }
+                setCode(DEFAULT_CODE.c);
+            });
     }, [id]);
 
     useEffect(() => {
@@ -233,19 +228,34 @@ function ProblemDetail({ user }) {
     };
 
 
+    const handleRun = async () => {
+        setLoading(true);
+        setResult(null);
+        try {
+            const execUrl = import.meta.env.VITE_EXEC_SERVICE_URL || 'http://localhost:3000';
+            const sampleInput = problem?.sampleInput || '';
+            const res = await fetch(`${execUrl}/execute`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ language, code, input: sampleInput }),
+            });
+            const data = await res.json();
+            const output = (data.output || '').trim();
+            const expected = (problem?.sampleOutput || '').trim();
+            const passed = output === expected;
+            setResult({ status: passed ? '✅ Output matches sample' : `❌ Wrong Answer\nGot: ${output}\nExpected: ${expected}` });
+        } catch (e) {
+            console.error(e);
+            setResult({ status: 'Execution service offline. Start the execution service.' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSubmit = async () => {
         setLoading(true);
         setResult(null);
         try {
-            // Mock problems (non-numeric IDs) cannot be submitted to backend
-            if (id.startsWith('mock-')) {
-                await new Promise(r => setTimeout(r, 800)); // simulate latency
-                const mockResult = { status: 'Submitted Locally — connect a real problem to grade via backend' };
-                setResult(mockResult);
-                setScore(0);
-                setLoading(false);
-                return;
-            }
             const payload = {
                 userId: user?.id || 1,
                 problemId: id,
@@ -264,7 +274,7 @@ function ProblemDetail({ user }) {
             if (activeTab === 'submissions') fetchSubmissions();
         } catch (e) {
             console.error(e);
-            setResult({ status: 'Error submitting code' });
+            setResult({ status: 'Error submitting — check the backend is running.' });
             setScore(0);
         } finally {
             setLoading(false);
@@ -486,7 +496,7 @@ function ProblemDetail({ user }) {
                                 {result.status}
                             </span>
                         )}
-                        <button className="run-btn" onClick={handleSubmit} disabled={loading}>
+                        <button className="run-btn" onClick={handleRun} disabled={loading}>
                             {loading ? 'Running...' : 'Run'}
                         </button>
                         <button className="submit-btn" onClick={handleSubmit} disabled={loading}>
